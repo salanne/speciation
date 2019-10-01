@@ -22,7 +22,7 @@ double precision :: boxlength,halfbox,halfboxrec
 double precision :: du,dx,dy,dz,r2,totfrac,totfrac2,totfrac3,nchargetot
 double precision :: fracijBe,fracijF,fracijO
 
-double precision, dimension(3) :: rdfmin, rdfmin2
+double precision,dimension(5,5) :: rdfmin, rdfmin2
 
 double precision, dimension(nmax)   :: x,y,z
 
@@ -45,9 +45,13 @@ allocate(spec(0:ncationpol1,0:nanion1,0:nanion2))
 
 nion=nanion1+nanion2+ncationpol1+ncationfree1
 
-do i=1,3
-   read(10,*) rdfmin(i)
-   rdfmin2(i)=rdfmin(i)**2
+rdfmin=0.d0
+rdfmin2=0.d0
+do i=1,5
+   read(10,*)rdfmin(i,1:5)
+   do j=1,5
+      rdfmin2(i,j)=rdfmin(i,j)**2
+   enddo
 enddo
 
 read(10,'(a)') filein1
@@ -132,9 +136,9 @@ do i=1,ncationpol1
       !tests  if they are bonded
       !2 tests: d(cation-cation)<rdfmin and presence of 1 or more bridging anion
 
-       if (r2.le.rdfmin2(3)) then
+       if (r2.le.rdfmin2(3,3)) then
 
-          call linkage(imark,jmark,nshar,nanion1,rdfmin2(1),boxlength,x,y,z,shar)
+          call linkage(imark,jmark,nshar,nanion1,rdfmin2(3,1),boxlength,x,y,z,shar)
 
           if (nshar.ne.0) then 
              nneighb=nneighb+1
@@ -219,7 +223,7 @@ do i=1,ncationpol1
              enddo
           endif
 
-          call linkage2(imark,jmark,nshar,nanion1,nanion2,rdfmin2(2),boxlength,x,y,z,shar)
+          call linkage2(imark,jmark,nshar,nanion1,nanion2,rdfmin2(3,2),boxlength,x,y,z,shar)
 
           if (nshar.ne.0) then 
              nneighb=nneighb+1
@@ -335,7 +339,7 @@ do i=1,ncationpol1
 
       r2=dx**2+dy**2+dz**2
 
-      if (r2.le.rdfmin2(1)) then
+      if (r2.le.rdfmin2(3,1)) then
          chain(i)=chain(jmark)
          atoms(chain(i),1)=atoms(chain(i),1)+1
          atoms(chain(i),atoms(chain(i),1)+1)=i
@@ -371,7 +375,7 @@ do i=1,ncationpol1
 
       r2=dx**2+dy**2+dz**2
 
-      if (r2.le.rdfmin2(2)) then
+      if (r2.le.rdfmin2(3,2)) then
          chain(i)=chain(jmark)
          atoms(chain(i),1)=atoms(chain(i),1)+1
          atoms(chain(i),atoms(chain(i),1)+1)=i
