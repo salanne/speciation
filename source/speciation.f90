@@ -9,16 +9,17 @@ parameter (nmax=800)
 
 integer :: i,j,k,l,ll
 integer :: imark,jmark,nskip
-integer :: nconfigs,nequil,nanion,ncation1,ncation2,nion,nanion2
+integer :: nconfigs,nequil,nanion1,ncationpol1,ncationfree1,nion,nanion2
+integer :: ncationpol2
 integer :: nneighb,nshar,nchain,nat,ichain,jchain,ntri,nmol
-integer, dimension(0:nmax,0:nmax,0:nmax) :: spec 
+integer, allocatable, dimension(:,:,:) :: spec 
 
 integer, dimension(10)        :: shar
 integer, dimension(nmax)      :: chain,nF,nO,nBe,ncharge
 integer, dimension(nmax,nmax) :: atoms
 
 double precision :: boxlength,halfbox,halfboxrec
-double precision :: du,dx,dy,dz,r2,totfrac,totfrac2,totfrac3,totfrac4,nchargetot
+double precision :: du,dx,dy,dz,r2,totfrac,totfrac2,totfrac3,nchargetot
 double precision :: fracijBe,fracijF,fracijO
 
 double precision, dimension(3) :: rdfmin, rdfmin2
@@ -26,19 +27,23 @@ double precision, dimension(3) :: rdfmin, rdfmin2
 double precision, dimension(nmax)   :: x,y,z
 
 character*80 :: filein1
+character*2, dimension(5) :: spc
 
 !Reading the input file
 open(10,file='speciation.inpt')
 
 read(10,*) nconfigs
 read(10,*) nskip
-read(10,*) nanion
-read(10,*) nanion2
-read(10,*) ncation1
-read(10,*) ncation2
+read(10,*) spc(1),nanion1
+read(10,*) spc(2),nanion2
+read(10,*) spc(3),ncationpol1
+read(10,*) spc(4),ncationpol2
+read(10,*) spc(5),ncationfree1
 read(10,*) boxlength
 
-nion=nanion+nanion2+ncation1+ncation2
+allocate(spec(0:ncationpol1,0:nanion1,0:nanion2))
+
+nion=nanion1+nanion2+ncationpol1+ncationfree1
 
 do i=1,3
    read(10,*) rdfmin(i)
@@ -58,11 +63,10 @@ nmol=0
 totfrac=0.0d0
 totfrac2=0.0d0
 totfrac3=0.0d0
-totfrac4=0.0d0
 
-do i=0,nmax
-   do j=0,nmax
-      do k=0,nmax
+do i=0,ncationpol1
+   do j=0,nanion1
+      do k=0,nanion2
          spec(i,j,k)=0
       enddo
    enddo
@@ -104,16 +108,16 @@ ntri=0
 
 !loop 1 over cations
 
-do i=1,ncation1
+do i=1,ncationpol1
 
-   imark=i+nanion+nanion2
+   imark=i+nanion1+nanion2
    nneighb=0
    
 
    !loop 2 over cation 1
    do j=1,i-1
 
-      jmark=j+nanion+nanion2
+      jmark=j+nanion1+nanion2
 
       dx=x(imark)-x(jmark)
       dy=y(imark)-y(jmark)
@@ -130,7 +134,7 @@ do i=1,ncation1
 
        if (r2.le.rdfmin2(3)) then
 
-          call linkage(imark,jmark,nshar,nanion,rdfmin2(1),boxlength,x,y,z,shar)
+          call linkage(imark,jmark,nshar,nanion1,rdfmin2(1),boxlength,x,y,z,shar)
 
           if (nshar.ne.0) then 
              nneighb=nneighb+1
@@ -215,7 +219,7 @@ do i=1,ncation1
              enddo
           endif
 
-          call linkage2(imark,jmark,nshar,nanion,nanion2,rdfmin2(2),boxlength,x,y,z,shar)
+          call linkage2(imark,jmark,nshar,nanion1,nanion2,rdfmin2(2),boxlength,x,y,z,shar)
 
           if (nshar.ne.0) then 
              nneighb=nneighb+1
@@ -313,14 +317,14 @@ do i=1,ncation1
  enddo
 
 ! Add the unshared anions in the good chains
- do i=1,nanion
+ do i=1,nanion1
 
     j=0
 
-    do while (chain(i).eq.0 .and. j.lt.ncation1)
+    do while (chain(i).eq.0 .and. j.lt.ncationpol1)
        
       j=j+1
-      jmark=nanion+nanion2+j
+      jmark=nanion1+nanion2+j
       dx=x(jmark)-x(i) 
       dy=y(jmark)-y(i) 
       dz=z(jmark)-z(i) 
@@ -349,14 +353,14 @@ do i=1,ncation1
 
 
  ! Add the unshared oxides in the good chains
- do i=nanion+1,nanion+nanion2
+ do i=nanion1+1,nanion1+nanion2
 
     j=0
 
-    do while (chain(i).eq.0 .and. j.lt.ncation1)
+    do while (chain(i).eq.0 .and. j.lt.ncationpol1)
        
       j=j+1
-      jmark=nanion+nanion2+j
+      jmark=nanion1+nanion2+j
       dx=x(jmark)-x(i) 
       dy=y(jmark)-y(i) 
       dz=z(jmark)-z(i) 
@@ -436,11 +440,11 @@ do i=1,ncation1
 
 do i=1,nchain
        do j=1,atoms(i,1)
-          if (atoms(i,j+1).le.nanion) then
+          if (atoms(i,j+1).le.nanion1) then
              nO(i)=nO(i)+1
 !            write(6,*)atoms(i,j+1),i
              ncharge(i)=ncharge(i)-2
-          elseif((atoms(i,j+1).gt.nanion).and.(atoms(i,j+1).le.(nanion+nanion2)))then
+          elseif((atoms(i,j+1).gt.nanion1).and.(atoms(i,j+1).le.(nanion1+nanion2)))then
              nF(i)=nF(i)+1
 !             write(26,*)atoms(i,j+1),i,j,atoms(i,1)
              ncharge(i)=ncharge(i)-1
@@ -462,41 +466,37 @@ do i=1,nchain
 
  enddo
 
- open(21,file='speciationAl.dat')
- open(22,file='speciationO.dat')
- open(23,file='speciationF.dat')
- open(24,file='speciationAl-norm2.dat')
+ open(21,file='speciation-cation1.dat')
+ open(22,file='speciation-anion1.dat')
+ open(23,file='speciation-anion2.dat')
 
- do i=0,nmax
-    do j=0,nmax
-       do k=0,nmax
-          fracijBe=100.0*(float(spec(i,j,k)))*float(i)/(float(nconfigs)*float(ncation1))
+ do i=0,ncationpol1
+    do j=0,nanion1
+       do k=0,nanion2
+          fracijBe=100.0*(float(spec(i,j,k)))*float(i)/(float(nconfigs)*float(ncationpol1))
           totfrac=totfrac+fracijBe
-          totfrac4=totfrac4+spec(i,j,k)
-          fracijO=100.0*(float(spec(i,j,k)))*float(j)/(float(nconfigs)*float(nanion))
+          fracijO=100.0*(float(spec(i,j,k)))*float(j)/(float(nconfigs)*float(nanion1))
           totfrac2=totfrac2+fracijO
           fracijF=100.0*(float(spec(i,j,k)))*float(k)/(float(nconfigs)*float(nanion2))
           totfrac3=totfrac3+fracijF
           if(fracijBe.gt. 0.01) then
-            write(21,*) fracijBe,'% de Al ',i,'O ',j,'F',k
+            write(21,*) fracijBe,'% de ',spc(3),i,spc(1),j,spc(2),k
           endif
           if(fracijO.gt. 0.01) then
-            write(22,*) fracijO,'% de Al ',i,'O ',j,'F',k
+            write(22,*) fracijO,'% de ',spc(3),i,spc(1),j,spc(2),k
           endif
           if(fracijF.gt. 0.01) then
-            write(23,*) fracijF,'% de Al ',i,'O ',j,'F',k
+            write(23,*) fracijF,'% de ',spc(3),i,spc(1),j,spc(2),k
           endif
-          if(spec(i,j,k).ne.0)write(24,*) float(spec(i,j,k))*100.0/totfrac4,'% de Al ',i,'O ',j,'F',k
        enddo
    enddo
  enddo
  nchargetot=nchargetot/float(nconfigs)
- write(6,*)nchargetot+ncation2,totfrac,totfrac2,totfrac3
+ write(6,*)nchargetot+ncationfree1,totfrac,totfrac2,totfrac3
 
  close(21)
  close(22)
  close(23)
- close(24)
  close(11)
 
 
@@ -504,7 +504,7 @@ do i=1,nchain
 
 
 
-subroutine linkage(imark,jmark,nshar,nanion,rdfcut2,boxlength,x,y,z,shar)
+subroutine linkage(imark,jmark,nshar,nanion1,rdfcut2,boxlength,x,y,z,shar)
 
 implicit none
 
@@ -512,7 +512,7 @@ integer :: nmax
 
 parameter (nmax=800)
 
-integer :: i,j,k,nshar,nanion
+integer :: i,j,k,nshar,nanion1
 integer :: imark,jmark
 integer, dimension(10) :: shar
 
@@ -525,7 +525,7 @@ nshar=0
 halfbox=boxlength/2.0d0
 halfboxrec=1.0d0/halfbox
 
-do i=1,nanion
+do i=1,nanion1
 
    dx1=x(i)-x(imark)
    dy1=y(i)-y(imark)
@@ -556,7 +556,7 @@ return
 
 end
 
-subroutine linkage2(imark,jmark,nshar,nanion,nanion2,rdfcut2,boxlength,x,y,z,shar)
+subroutine linkage2(imark,jmark,nshar,nanion1,nanion2,rdfcut2,boxlength,x,y,z,shar)
 
 implicit none
 
@@ -564,7 +564,7 @@ integer :: nmax
 
 parameter (nmax=800)
 
-integer :: i,j,k,nshar,nanion,nanion2
+integer :: i,j,k,nshar,nanion1,nanion2
 integer :: imark,jmark
 integer, dimension(10) :: shar
 
@@ -577,7 +577,7 @@ nshar=0
 halfbox=boxlength/2.0d0
 halfboxrec=1.0d0/halfbox
 
-do i=nanion+1,nanion+nanion2
+do i=nanion1+1,nanion1+nanion2
 
    dx1=x(i)-x(imark)
    dy1=y(i)-y(imark)

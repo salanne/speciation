@@ -1,9 +1,10 @@
-100            !nstep 
+1              !nstep 
 0              !nskip (nskip+nstep=number of configurations in positions.out)
-6              !nO
-105            !nF
-24             !nAl
-45             !nNa
+O  6              !nanion1
+F  105            !nanion2
+Al 24             !ncation du reseau 1
+X  0              !ncation du reseau 2
+Na 45             !ncation libre
 27.4135725654843     !boxlength  
 3.933             !cut-off(Al-O)
 4.043             !cut-off(Al-F)
