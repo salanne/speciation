@@ -22,6 +22,7 @@ integer, dimension(nmax,nmax) :: atoms
 double precision :: boxlength,halfbox,halfboxrec
 double precision :: du,dx,dy,dz,r2,totfrac1,totfrac2,totfrac3,totfrac4,nchargetot
 double precision :: fracijBe,fracijBe2,fracijF,fracijO
+double precision :: charge(5)
 
 double precision,dimension(5,5) :: rdfmin, rdfmin2
 
@@ -35,11 +36,11 @@ open(10,file='speciation.inpt')
 
 read(10,*) nconfigs
 read(10,*) nskip
-read(10,*) spc(1),nanion1
-read(10,*) spc(2),nanion2
-read(10,*) spc(3),ncationpol1
-read(10,*) spc(4),ncationpol2
-read(10,*) spc(5),ncationfree1
+read(10,*) spc(1),nanion1,charge(1)
+read(10,*) spc(2),nanion2,charge(2)
+read(10,*) spc(3),ncationpol1,charge(3)
+read(10,*) spc(4),ncationpol2,charge(4)
+read(10,*) spc(5),ncationfree1,charge(5)
 read(10,*) boxlength
 
 allocate(spec(0:ncationpol1,0:ncationpol2,0:nanion1,0:nanion2))
@@ -64,7 +65,7 @@ close(10)
 halfbox=boxlength/2.0d0
 halfboxrec=1.0d0/halfbox
 
-nchargetot=0
+nchargetot=0.d0
 nmol=0
 totfrac1=0.0d0
 totfrac2=0.0d0
@@ -327,7 +328,6 @@ do i=1,ncationpol1
 
 !loop 2 looks for cation1-cation2 linkages
 
-write(6,*)chain(124),'avant boucle 2'
 do i=1,ncationpol2
 
    imark=i+nanion1+nanion2+ncationpol1
@@ -526,17 +526,17 @@ do i=1,ncationpol2
        endif
 
     enddo
+
   
   ! if i has no neighbour then creation of a new chain
-    if (nneighbcat2(i).eq.0) then
-       nchain=nchain+1
-       chain(imark)=nchain
-       atoms(nchain,1)=1
-       atoms(nchain,2)=imark
-    endif
+!   if (nneighbcat2(i).eq.0) then
+!      nchain=nchain+1
+!      chain(imark)=nchain
+!      atoms(nchain,1)=1
+!      atoms(nchain,2)=imark
+!   endif
  enddo
 
-write(6,*)chain(124),'avant boucle 3'
 
 !loop 3 looks for cation2-cation2 linkages
 
@@ -746,9 +746,9 @@ do i=1,ncationpol2
        atoms(nchain,1)=1
        atoms(nchain,2)=imark
     endif
+
  enddo
 
-write(6,*)chain(124),'apres boucle 3'
 ! Add the unshared anions in the good chains
  do i=1,nanion1
 
@@ -846,24 +846,18 @@ write(6,*)chain(124),'apres boucle 3'
     ncat1(i)=0
     ncat2(i)=0
     ncharge(i)=0
-    write(100,*)chain(i)
  enddo
 
-!write(6,*)(atoms(1,i),i=1,atoms(1,1)+1)
 ! remove triclusters 
  do i=1,nchain
     do j=2,atoms(i,1)
        do k=1,j-1
           if((atoms(i,k+1).ne.0).and.(atoms(i,k+1).eq.atoms(i,j+1)))then
-!             write(6,*)atoms(i,k+1),atoms(i,j+1),j,k
-!write(6,*)(atoms(1,ll),ll=1,atoms(1,1)+1)
              atoms(i,1)=atoms(i,1)-1
              do ll=k,atoms(i,1)
                 atoms(i,ll+1)=atoms(i,ll+2)
              enddo
              atoms(i,atoms(i,1)+2)=0
-!             write(6,*)(atoms(1,ll),ll=1,atoms(1,1)+5)
-!             atoms(i,atoms(i,1))=0
           endif
        enddo
     enddo
@@ -873,37 +867,31 @@ write(6,*)chain(124),'apres boucle 3'
     do j=2,atoms(i,1)
        do k=1,j-1
           if((atoms(i,k+1).ne.0).and.(atoms(i,k+1).eq.atoms(i,j+1)))then
-!             write(6,*)atoms(i,k+1),atoms(i,j+1),j,k
-!write(6,*)(atoms(1,ll),ll=1,atoms(1,1)+1)
              atoms(i,1)=atoms(i,1)-1
              do ll=k,atoms(i,1)
                 atoms(i,ll+1)=atoms(i,ll+2)
              enddo
              atoms(i,atoms(i,1)+2)=0
-!             write(6,*)(atoms(1,ll),ll=1,atoms(1,1)+5)
-!             atoms(i,atoms(i,1))=0
           endif
        enddo
     enddo
  enddo
-!write(6,*)(atoms(1,i),i=1,atoms(1,1)+1)
 
 do i=1,nchain
        do j=1,atoms(i,1)
           if (atoms(i,j+1).le.nanion1) then
              nan1(i)=nan1(i)+1
-!            write(6,*)atoms(i,j+1),i
-             ncharge(i)=ncharge(i)-2
+             ncharge(i)=ncharge(i)+charge(1)
           elseif((atoms(i,j+1).gt.nanion1).and.(atoms(i,j+1).le.(nanion1+nanion2)))then
              nan2(i)=nan2(i)+1
 !             write(26,*)atoms(i,j+1),i,j,atoms(i,1)
-             ncharge(i)=ncharge(i)-1
+             ncharge(i)=ncharge(i)+charge(2)
           elseif((atoms(i,j+1).gt.nanion1+nanion2).and.(atoms(i,j+1).le.(nanion1+nanion2+ncationpol1)))then
              ncat1(i)=ncat1(i)+1
-             ncharge(i)=ncharge(i)+3
+             ncharge(i)=ncharge(i)+charge(3)
           else    
              ncat2(i)=ncat2(i)+1
-             ncharge(i)=ncharge(i)+3
+             ncharge(i)=ncharge(i)+charge(4)
           endif
        enddo
        nchargetot=nchargetot+ncharge(i)
@@ -911,17 +899,9 @@ do i=1,nchain
           spec(ncat1(i),ncat2(i),nan1(i),nan2(i))=spec(ncat1(i),ncat2(i),nan1(i),nan2(i))+1
           nmol=nmol+1
        endif
- enddo
+enddo
 
- do i=1,nchain
-    write(101,*)atoms(i,2:atoms(i,1)+1)
- enddo 
-
-
-
-
-
- enddo
+enddo
 
  open(21,file='speciation-cation1.dat')
  open(22,file='speciation-cation2.dat')
@@ -961,7 +941,7 @@ do i=1,nchain
    enddo
  enddo
  nchargetot=nchargetot/float(nconfigs)
- write(6,*)nchargetot+ncationfree1,totfrac1,totfrac2,totfrac3,totfrac4
+ write(6,*)nchargetot+ncationfree1*charge(5),totfrac1,totfrac2,totfrac3,totfrac4
 
  close(21)
  close(22)

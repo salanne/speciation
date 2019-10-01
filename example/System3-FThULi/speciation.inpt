@@ -1,0 +1,14 @@
+1              !nconfigs
+0              !nskip (nskip+nstep=nombre de pas dans positions.out)
+F   324 -1            !nF    F
+X   0   0
+Th  40  4           !nSc   Th
+U   7   4           !nAl   U
+Li  136 1           !nNa   Li
+35.8308497      !boxlength  
+0.000 0.000 6.000 5.820 0.000
+0.000 0.000 0.000 0.000 0.000
+6.000 0.000 9.465 9.463 0.000
+5.820 0.000 9.463 9.465 0.000
+0.000 0.000 0.000 0.000 0.000
+4pcUF4_cfg10000_positions.out
