@@ -12,10 +12,10 @@ integer :: imark,jmark,nskip
 integer :: nconfigs,nequil,nanion1,ncationpol1,ncationfree1,nion,nanion2
 integer :: ncationpol2
 integer :: nneighb,nshar,nchain,nat,ichain,jchain,ntri,nmol
-integer, allocatable, dimension(:,:,:) :: spec 
+integer, allocatable, dimension(:,:,:,:) :: spec 
 
 integer, dimension(10)        :: shar
-integer, dimension(nmax)      :: chain,nF,nO,nBe,ncharge
+integer, dimension(nmax)      :: chain,nan1,nan2,ncat1,ncat2,ncharge
 integer, dimension(nmax,nmax) :: atoms
 
 double precision :: boxlength,halfbox,halfboxrec
@@ -41,9 +41,9 @@ read(10,*) spc(4),ncationpol2
 read(10,*) spc(5),ncationfree1
 read(10,*) boxlength
 
-allocate(spec(0:ncationpol1,0:nanion1,0:nanion2))
+allocate(spec(0:ncationpol1,0:ncationpol2,0:nanion1,0:nanion2))
 
-nion=nanion1+nanion2+ncationpol1+ncationfree1
+nion=nanion1+nanion2+ncationpol1+ncationpol2+ncationfree1
 
 rdfmin=0.d0
 rdfmin2=0.d0
@@ -69,9 +69,11 @@ totfrac2=0.0d0
 totfrac3=0.0d0
 
 do i=0,ncationpol1
-   do j=0,nanion1
-      do k=0,nanion2
-         spec(i,j,k)=0
+   do j=0,ncationpol2
+      do k=0,nanion1
+         do l=0,nanion2
+            spec(i,j,k,l)=0
+         enddo   
       enddo
    enddo
 enddo
@@ -397,9 +399,10 @@ do i=1,ncationpol1
 
 
  do i=1,nmax
-    nO(i)=0
-    nF(i)=0
-    nBe(i)=0
+    nan1(i)=0
+    nan2(i)=0
+    ncat1(i)=0
+    ncat2(i)=0
     ncharge(i)=0
  enddo
 
@@ -445,21 +448,21 @@ do i=1,ncationpol1
 do i=1,nchain
        do j=1,atoms(i,1)
           if (atoms(i,j+1).le.nanion1) then
-             nO(i)=nO(i)+1
+             nan1(i)=nan1(i)+1
 !            write(6,*)atoms(i,j+1),i
              ncharge(i)=ncharge(i)-2
           elseif((atoms(i,j+1).gt.nanion1).and.(atoms(i,j+1).le.(nanion1+nanion2)))then
-             nF(i)=nF(i)+1
+             nan2(i)=nan2(i)+1
 !             write(26,*)atoms(i,j+1),i,j,atoms(i,1)
              ncharge(i)=ncharge(i)-1
           else
-             nBe(i)=nBe(i)+1
+             ncat1(i)=ncat1(i)+1
              ncharge(i)=ncharge(i)+3
           endif
        enddo
        nchargetot=nchargetot+ncharge(i)
-       if (nF(i).ne.0) then
-          spec(nBe(i),nO(i),nF(i))=spec(nBe(i),nO(i),nF(i))+1
+       if ((nan1(i).ne.0).or.(nan2(i).ne.0)) then
+          spec(ncat1(i),ncat2(i),nan1(i),nan2(i))=spec(ncat1(i),ncat2(i),nan1(i),nan2(i))+1
           nmol=nmol+1
        endif
  enddo
@@ -475,23 +478,25 @@ do i=1,nchain
  open(23,file='speciation-anion2.dat')
 
  do i=0,ncationpol1
-    do j=0,nanion1
-       do k=0,nanion2
-          fracijBe=100.0*(float(spec(i,j,k)))*float(i)/(float(nconfigs)*float(ncationpol1))
-          totfrac=totfrac+fracijBe
-          fracijO=100.0*(float(spec(i,j,k)))*float(j)/(float(nconfigs)*float(nanion1))
-          totfrac2=totfrac2+fracijO
-          fracijF=100.0*(float(spec(i,j,k)))*float(k)/(float(nconfigs)*float(nanion2))
-          totfrac3=totfrac3+fracijF
-          if(fracijBe.gt. 0.01) then
-            write(21,*) fracijBe,'% de ',spc(3),i,spc(1),j,spc(2),k
-          endif
-          if(fracijO.gt. 0.01) then
-            write(22,*) fracijO,'% de ',spc(3),i,spc(1),j,spc(2),k
-          endif
-          if(fracijF.gt. 0.01) then
-            write(23,*) fracijF,'% de ',spc(3),i,spc(1),j,spc(2),k
-          endif
+    do j=0,ncationpol2
+       do k=0,nanion1
+          do l=0,nanion2
+             fracijBe=100.0*(float(spec(i,j,k,l)))*float(i)/(float(nconfigs)*float(ncationpol1))
+             totfrac=totfrac+fracijBe
+             fracijO=100.0*(float(spec(i,j,k,l)))*float(k)/(float(nconfigs)*float(nanion1))
+             totfrac2=totfrac2+fracijO
+             fracijF=100.0*(float(spec(i,j,k,l)))*float(l)/(float(nconfigs)*float(nanion2))
+             totfrac3=totfrac3+fracijF
+             if(fracijBe.gt. 0.01) then
+               write(21,*) fracijBe,'% de ',spc(3),i,spc(1),k,spc(2),l
+             endif
+             if(fracijO.gt. 0.01) then
+               write(22,*) fracijO,'% de ',spc(3),i,spc(1),k,spc(2),l
+             endif
+             if(fracijF.gt. 0.01) then
+               write(23,*) fracijF,'% de ',spc(3),i,spc(1),k,spc(2),l
+             endif
+          enddo    
        enddo
    enddo
  enddo
