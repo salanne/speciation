@@ -12,15 +12,16 @@ integer :: imark,jmark,nskip
 integer :: nconfigs,nequil,nanion1,ncationpol1,ncationfree1,nion,nanion2
 integer :: ncationpol2
 integer :: nneighb,nshar,nchain,nat,ichain,jchain,ntri,nmol
-integer, allocatable, dimension(:,:,:,:) :: spec 
+integer, allocatable, dimension(:,:,:,:) :: spec
+integer, allocatable, dimension(:) :: nneighbcat2
 
 integer, dimension(10)        :: shar
 integer, dimension(nmax)      :: chain,nan1,nan2,ncat1,ncat2,ncharge
 integer, dimension(nmax,nmax) :: atoms
 
 double precision :: boxlength,halfbox,halfboxrec
-double precision :: du,dx,dy,dz,r2,totfrac,totfrac2,totfrac3,nchargetot
-double precision :: fracijBe,fracijF,fracijO
+double precision :: du,dx,dy,dz,r2,totfrac1,totfrac2,totfrac3,totfrac4,nchargetot
+double precision :: fracijBe,fracijBe2,fracijF,fracijO
 
 double precision,dimension(5,5) :: rdfmin, rdfmin2
 
@@ -42,6 +43,7 @@ read(10,*) spc(5),ncationfree1
 read(10,*) boxlength
 
 allocate(spec(0:ncationpol1,0:ncationpol2,0:nanion1,0:nanion2))
+allocate(nneighbcat2(ncationpol2))
 
 nion=nanion1+nanion2+ncationpol1+ncationpol2+ncationfree1
 
@@ -64,9 +66,10 @@ halfboxrec=1.0d0/halfbox
 
 nchargetot=0
 nmol=0
-totfrac=0.0d0
+totfrac1=0.0d0
 totfrac2=0.0d0
 totfrac3=0.0d0
+totfrac4=0.0d0
 
 do i=0,ncationpol1
    do j=0,ncationpol2
@@ -112,7 +115,7 @@ enddo
 nchain=0
 ntri=0
 
-!loop 1 over cations
+!loop 1 looks for cation1-cation1 linkages
 
 do i=1,ncationpol1
 
@@ -322,12 +325,436 @@ do i=1,ncationpol1
     endif
  enddo
 
+!loop 2 looks for cation1-cation2 linkages
+
+write(6,*)chain(124),'avant boucle 2'
+do i=1,ncationpol2
+
+   imark=i+nanion1+nanion2+ncationpol1
+   nneighbcat2(i)=0
+   
+
+   !loop 2 over cation 1
+   do j=1,ncationpol1
+
+      jmark=j+nanion1+nanion2
+
+      dx=x(imark)-x(jmark)
+      dy=y(imark)-y(jmark)
+      dz=z(imark)-z(jmark)
+
+      dx=dx-boxlength*int(dx*halfboxrec)
+      dy=dy-boxlength*int(dy*halfboxrec)
+      dz=dz-boxlength*int(dz*halfboxrec)
+
+      r2=dx**2+dy**2+dz**2
+
+      !tests  if they are bonded
+      !2 tests: d(cation-cation)<rdfmin and presence of 1 or more bridging anion
+
+       if (r2.le.rdfmin2(4,3)) then
+
+          call linkage(imark,jmark,nshar,nanion1,rdfmin2(4,1),boxlength,x,y,z,shar)
+
+          if (nshar.ne.0) then 
+             nneighbcat2(i)=nneighbcat2(i)+1
+             ichain=chain(imark)
+             jchain=chain(jmark)
+
+
+   !1st case: i is not in a chain then it goes in the same as j
+             if (ichain.eq.0) then
+                chain(imark)=jchain
+   !1st element of atoms contains the number of atoms in the chain
+   ! then the others are the atom labels of atoms contained 
+   !in the chain
+                atoms(jchain,1)=atoms(jchain,1)+1
+                atoms(jchain,atoms(jchain,1)+1)=imark
+
+
+   !2nd case: i and j are in the same chain
+             elseif (ichain.eq.jchain) then
+                ntri=ntri+1
+
+
+    ! 3rd case: i is in a chain of greater label than j
+    ! then all the atoms in the same chain as i go into
+    ! the chain containing j
+    ! and the former chain containing i is filled with 0
+             elseif (ichain.gt.jchain) then
+                nat=atoms(ichain,1)
+    ! must separate i and the other atoms of his old chain
+                do k=1,nat
+                   if (atoms(ichain,1+k).ne.imark) then
+                      chain(atoms(ichain,1+k))=jchain
+                      atoms(jchain,1)=atoms(jchain,1)+1
+                      atoms(jchain,atoms(jchain,1)+1)=atoms(ichain,1+k)
+                   endif
+                enddo
+                do k=1,nat
+                   if (atoms(ichain,1+k).eq.imark) then
+                      chain(atoms(ichain,1+k))=jchain
+                      atoms(jchain,1)=atoms(jchain,1)+1
+                      atoms(jchain,atoms(jchain,1)+1)=atoms(ichain,1+k)
+                   endif
+                enddo
+                do k=1,nat+1
+                   atoms(ichain,k)=0
+                enddo
+
+
+
+   ! 4th case: i is in a chain of smaller label than j
+   !then all the atoms in the same chain as j go into
+   !the chain containing i
+   !and the former chain containing j is filled with 0
+             else
+                nat=atoms(jchain,1)
+   ! must separate j and the other atoms of his old chain
+                do k=1,nat
+                   if (atoms(jchain,1+k).ne.jmark) then
+                      chain(atoms(jchain,1+k))=ichain
+                      atoms(ichain,1)=atoms(ichain,1)+1
+                      atoms(ichain,atoms(ichain,1)+1)=atoms(jchain,1+k)
+                   endif
+                enddo
+                do k=1,nat
+                   if (atoms(jchain,1+k).eq.jmark) then
+                      chain(atoms(jchain,1+k))=ichain
+                      atoms(ichain,1)=atoms(ichain,1)+1
+                      atoms(ichain,atoms(ichain,1)+1)=atoms(jchain,1+k)
+                   endif
+                enddo
+                do k=1,nat+1
+                   atoms(jchain,k)=0
+                enddo
+             endif
+
+   ! Add the shared anions 1 (given by subroutine linkage) in the good chain 
+             do k=1,nshar
+                chain(shar(k))=chain(imark)
+                atoms(chain(imark),1)=atoms(chain(imark),1)+1
+               atoms(chain(imark),atoms(chain(imark),1)+1)=shar(k)
+!              if(shar(k).eq.4)write(6,*)imark,jmark
+             enddo
+          endif
+
+          call linkage2(imark,jmark,nshar,nanion1,nanion2,rdfmin2(4,2),boxlength,x,y,z,shar)
+
+          if (nshar.ne.0) then 
+             nneighbcat2(i)=nneighbcat2(i)+1
+             ichain=chain(imark)
+             jchain=chain(jmark)
+
+
+   !1st case: i is not in a chain then it goes in the same as j
+             if (ichain.eq.0) then
+                chain(imark)=jchain
+   !1st element of atoms contains the number of atoms in the chain
+   ! then the others are the atom labels of atoms contained 
+   !in the chain
+                atoms(jchain,1)=atoms(jchain,1)+1
+                atoms(jchain,atoms(jchain,1)+1)=imark
+
+
+   !2nd case: i and j are in the same chain
+             elseif (ichain.eq.jchain) then
+                ntri=ntri+1
+
+
+    ! 3rd case: i is in a chain of greater label than j
+    ! then all the atoms in the same chain as i go into
+    ! the chain containing j
+    ! and the former chain containing i is filled with 0
+             elseif (ichain.gt.jchain) then
+                nat=atoms(ichain,1)
+    ! must separate i and the other atoms of his old chain
+                do k=1,nat
+                   if (atoms(ichain,1+k).ne.imark) then
+                      chain(atoms(ichain,1+k))=jchain
+                      atoms(jchain,1)=atoms(jchain,1)+1
+                      atoms(jchain,atoms(jchain,1)+1)=atoms(ichain,1+k)
+                   endif
+                enddo
+                do k=1,nat
+                   if (atoms(ichain,1+k).eq.imark) then
+                      chain(atoms(ichain,1+k))=jchain
+                      atoms(jchain,1)=atoms(jchain,1)+1
+                      atoms(jchain,atoms(jchain,1)+1)=atoms(ichain,1+k)
+                   endif
+                enddo
+                do k=1,nat+1
+                   atoms(ichain,k)=0
+                enddo
+
+
+
+   ! 4th case: i is in a chain of smaller label than j
+   !then all the atoms in the same chain as j go into
+   !the chain containing i
+   !and the former chain containing j is filled with 0
+             else
+                nat=atoms(jchain,1)
+   ! must separate j and the other atoms of his old chain
+                do k=1,nat
+                   if (atoms(jchain,1+k).ne.jmark) then
+                      chain(atoms(jchain,1+k))=ichain
+                      atoms(ichain,1)=atoms(ichain,1)+1
+                      atoms(ichain,atoms(ichain,1)+1)=atoms(jchain,1+k)
+                   endif
+                enddo
+                do k=1,nat
+                   if (atoms(jchain,1+k).eq.jmark) then
+                      chain(atoms(jchain,1+k))=ichain
+                      atoms(ichain,1)=atoms(ichain,1)+1
+                      atoms(ichain,atoms(ichain,1)+1)=atoms(jchain,1+k)
+                   endif
+                enddo
+                do k=1,nat+1
+                   atoms(jchain,k)=0
+                enddo
+             endif
+
+   ! Add the shared anions 2 (given by subroutine linkage) in the good chain 
+             do k=1,nshar
+                chain(shar(k))=chain(imark)
+                atoms(chain(imark),1)=atoms(chain(imark),1)+1
+               atoms(chain(imark),atoms(chain(imark),1)+1)=shar(k)
+             enddo
+          endif
+
+       endif
+
+    enddo
+  
+  ! if i has no neighbour then creation of a new chain
+    if (nneighbcat2(i).eq.0) then
+       nchain=nchain+1
+       chain(imark)=nchain
+       atoms(nchain,1)=1
+       atoms(nchain,2)=imark
+    endif
+ enddo
+
+write(6,*)chain(124),'avant boucle 3'
+
+!loop 3 looks for cation2-cation2 linkages
+
+do i=1,ncationpol2
+
+   imark=i+nanion1+nanion2+ncationpol1
+!  nneighb=0
+   
+
+   !loop 2 over cation 2
+   do j=1,i-1
+
+      jmark=j+nanion1+nanion2+ncationpol1
+
+      dx=x(imark)-x(jmark)
+      dy=y(imark)-y(jmark)
+      dz=z(imark)-z(jmark)
+
+      dx=dx-boxlength*int(dx*halfboxrec)
+      dy=dy-boxlength*int(dy*halfboxrec)
+      dz=dz-boxlength*int(dz*halfboxrec)
+
+      r2=dx**2+dy**2+dz**2
+
+      !tests  if they are bonded
+      !2 tests: d(cation-cation)<rdfmin and presence of 1 or more bridging anion
+
+       if (r2.le.rdfmin2(4,4)) then
+
+          call linkage(imark,jmark,nshar,nanion1,rdfmin2(4,1),boxlength,x,y,z,shar)
+
+          if (nshar.ne.0) then 
+             nneighbcat2(i)=nneighbcat2(i)+1
+             ichain=chain(imark)
+             jchain=chain(jmark)
+
+
+   !1st case: i is not in a chain then it goes in the same as j
+             if (ichain.eq.0) then
+                chain(imark)=jchain
+   !1st element of atoms contains the number of atoms in the chain
+   ! then the others are the atom labels of atoms contained 
+   !in the chain
+                atoms(jchain,1)=atoms(jchain,1)+1
+                atoms(jchain,atoms(jchain,1)+1)=imark
+
+
+   !2nd case: i and j are in the same chain
+             elseif (ichain.eq.jchain) then
+                ntri=ntri+1
+
+
+    ! 3rd case: i is in a chain of greater label than j
+    ! then all the atoms in the same chain as i go into
+    ! the chain containing j
+    ! and the former chain containing i is filled with 0
+             elseif (ichain.gt.jchain) then
+                nat=atoms(ichain,1)
+    ! must separate i and the other atoms of his old chain
+                do k=1,nat
+                   if (atoms(ichain,1+k).ne.imark) then
+                      chain(atoms(ichain,1+k))=jchain
+                      atoms(jchain,1)=atoms(jchain,1)+1
+                      atoms(jchain,atoms(jchain,1)+1)=atoms(ichain,1+k)
+                   endif
+                enddo
+                do k=1,nat
+                   if (atoms(ichain,1+k).eq.imark) then
+                      chain(atoms(ichain,1+k))=jchain
+                      atoms(jchain,1)=atoms(jchain,1)+1
+                      atoms(jchain,atoms(jchain,1)+1)=atoms(ichain,1+k)
+                   endif
+                enddo
+                do k=1,nat+1
+                   atoms(ichain,k)=0
+                enddo
+
+
+
+   ! 4th case: i is in a chain of smaller label than j
+   !then all the atoms in the same chain as j go into
+   !the chain containing i
+   !and the former chain containing j is filled with 0
+             else
+                nat=atoms(jchain,1)
+   ! must separate j and the other atoms of his old chain
+                do k=1,nat
+                   if (atoms(jchain,1+k).ne.jmark) then
+                      chain(atoms(jchain,1+k))=ichain
+                      atoms(ichain,1)=atoms(ichain,1)+1
+                      atoms(ichain,atoms(ichain,1)+1)=atoms(jchain,1+k)
+                   endif
+                enddo
+                do k=1,nat
+                   if (atoms(jchain,1+k).eq.jmark) then
+                      chain(atoms(jchain,1+k))=ichain
+                      atoms(ichain,1)=atoms(ichain,1)+1
+                      atoms(ichain,atoms(ichain,1)+1)=atoms(jchain,1+k)
+                   endif
+                enddo
+                do k=1,nat+1
+                   atoms(jchain,k)=0
+                enddo
+             endif
+
+   ! Add the shared anions 1 (given by subroutine linkage) in the good chain 
+             do k=1,nshar
+                chain(shar(k))=chain(imark)
+                atoms(chain(imark),1)=atoms(chain(imark),1)+1
+               atoms(chain(imark),atoms(chain(imark),1)+1)=shar(k)
+!              if(shar(k).eq.4)write(6,*)imark,jmark
+             enddo
+          endif
+
+          call linkage2(imark,jmark,nshar,nanion1,nanion2,rdfmin2(4,2),boxlength,x,y,z,shar)
+
+          if (nshar.ne.0) then 
+             nneighbcat2(i)=nneighbcat2(i)+1
+             ichain=chain(imark)
+             jchain=chain(jmark)
+
+
+   !1st case: i is not in a chain then it goes in the same as j
+             if (ichain.eq.0) then
+                chain(imark)=jchain
+   !1st element of atoms contains the number of atoms in the chain
+   ! then the others are the atom labels of atoms contained 
+   !in the chain
+                atoms(jchain,1)=atoms(jchain,1)+1
+                atoms(jchain,atoms(jchain,1)+1)=imark
+
+
+   !2nd case: i and j are in the same chain
+             elseif (ichain.eq.jchain) then
+                ntri=ntri+1
+
+
+    ! 3rd case: i is in a chain of greater label than j
+    ! then all the atoms in the same chain as i go into
+    ! the chain containing j
+    ! and the former chain containing i is filled with 0
+             elseif (ichain.gt.jchain) then
+                nat=atoms(ichain,1)
+    ! must separate i and the other atoms of his old chain
+                do k=1,nat
+                   if (atoms(ichain,1+k).ne.imark) then
+                      chain(atoms(ichain,1+k))=jchain
+                      atoms(jchain,1)=atoms(jchain,1)+1
+                      atoms(jchain,atoms(jchain,1)+1)=atoms(ichain,1+k)
+                   endif
+                enddo
+                do k=1,nat
+                   if (atoms(ichain,1+k).eq.imark) then
+                      chain(atoms(ichain,1+k))=jchain
+                      atoms(jchain,1)=atoms(jchain,1)+1
+                      atoms(jchain,atoms(jchain,1)+1)=atoms(ichain,1+k)
+                   endif
+                enddo
+                do k=1,nat+1
+                   atoms(ichain,k)=0
+                enddo
+
+
+
+   ! 4th case: i is in a chain of smaller label than j
+   !then all the atoms in the same chain as j go into
+   !the chain containing i
+   !and the former chain containing j is filled with 0
+             else
+                nat=atoms(jchain,1)
+   ! must separate j and the other atoms of his old chain
+                do k=1,nat
+                   if (atoms(jchain,1+k).ne.jmark) then
+                      chain(atoms(jchain,1+k))=ichain
+                      atoms(ichain,1)=atoms(ichain,1)+1
+                      atoms(ichain,atoms(ichain,1)+1)=atoms(jchain,1+k)
+                   endif
+                enddo
+                do k=1,nat
+                   if (atoms(jchain,1+k).eq.jmark) then
+                      chain(atoms(jchain,1+k))=ichain
+                      atoms(ichain,1)=atoms(ichain,1)+1
+                      atoms(ichain,atoms(ichain,1)+1)=atoms(jchain,1+k)
+                   endif
+                enddo
+                do k=1,nat+1
+                   atoms(jchain,k)=0
+                enddo
+             endif
+
+   ! Add the shared anions 2 (given by subroutine linkage) in the good chain 
+             do k=1,nshar
+                chain(shar(k))=chain(imark)
+                atoms(chain(imark),1)=atoms(chain(imark),1)+1
+               atoms(chain(imark),atoms(chain(imark),1)+1)=shar(k)
+             enddo
+          endif
+
+       endif
+
+    enddo
+  
+  ! if i has no neighbour then creation of a new chain
+    if (nneighbcat2(i).eq.0) then
+       nchain=nchain+1
+       chain(imark)=nchain
+       atoms(nchain,1)=1
+       atoms(nchain,2)=imark
+    endif
+ enddo
+
+write(6,*)chain(124),'apres boucle 3'
 ! Add the unshared anions in the good chains
  do i=1,nanion1
 
     j=0
 
-    do while (chain(i).eq.0 .and. j.lt.ncationpol1)
+    do while (chain(i).eq.0 .and. j.lt.(ncationpol1+ncationpol2))
        
       j=j+1
       jmark=nanion1+nanion2+j
@@ -341,12 +768,19 @@ do i=1,ncationpol1
 
       r2=dx**2+dy**2+dz**2
 
-      if (r2.le.rdfmin2(3,1)) then
-         chain(i)=chain(jmark)
-         atoms(chain(i),1)=atoms(chain(i),1)+1
-         atoms(chain(i),atoms(chain(i),1)+1)=i
-      endif
-
+      if(j.le.ncationpol1)then
+         if (r2.le.rdfmin2(3,1)) then
+            chain(i)=chain(jmark)
+            atoms(chain(i),1)=atoms(chain(i),1)+1
+            atoms(chain(i),atoms(chain(i),1)+1)=i
+         endif
+      else
+         if (r2.le.rdfmin2(4,1)) then
+            chain(i)=chain(jmark)
+            atoms(chain(i),1)=atoms(chain(i),1)+1
+            atoms(chain(i),atoms(chain(i),1)+1)=i
+         endif
+      endif         
     enddo
   ! if F is alone then creates a new chain
      if (chain(i).eq.0) then
@@ -363,7 +797,7 @@ do i=1,ncationpol1
 
     j=0
 
-    do while (chain(i).eq.0 .and. j.lt.ncationpol1)
+    do while (chain(i).eq.0 .and. j.lt.(ncationpol1+ncationpol2))
        
       j=j+1
       jmark=nanion1+nanion2+j
@@ -377,11 +811,19 @@ do i=1,ncationpol1
 
       r2=dx**2+dy**2+dz**2
 
-      if (r2.le.rdfmin2(3,2)) then
-         chain(i)=chain(jmark)
-         atoms(chain(i),1)=atoms(chain(i),1)+1
-         atoms(chain(i),atoms(chain(i),1)+1)=i
-      endif
+      if(j.le.ncationpol1)then
+         if (r2.le.rdfmin2(3,2)) then
+            chain(i)=chain(jmark)
+            atoms(chain(i),1)=atoms(chain(i),1)+1
+            atoms(chain(i),atoms(chain(i),1)+1)=i
+         endif
+      else   
+         if (r2.le.rdfmin2(4,2)) then
+            chain(i)=chain(jmark)
+            atoms(chain(i),1)=atoms(chain(i),1)+1
+            atoms(chain(i),atoms(chain(i),1)+1)=i
+         endif
+      endif   
 
     enddo
   ! if F is alone then creates a new chain
@@ -404,6 +846,7 @@ do i=1,ncationpol1
     ncat1(i)=0
     ncat2(i)=0
     ncharge(i)=0
+    write(100,*)chain(i)
  enddo
 
 !write(6,*)(atoms(1,i),i=1,atoms(1,1)+1)
@@ -455,8 +898,11 @@ do i=1,nchain
              nan2(i)=nan2(i)+1
 !             write(26,*)atoms(i,j+1),i,j,atoms(i,1)
              ncharge(i)=ncharge(i)-1
-          else
+          elseif((atoms(i,j+1).gt.nanion1+nanion2).and.(atoms(i,j+1).le.(nanion1+nanion2+ncationpol1)))then
              ncat1(i)=ncat1(i)+1
+             ncharge(i)=ncharge(i)+3
+          else    
+             ncat2(i)=ncat2(i)+1
              ncharge(i)=ncharge(i)+3
           endif
        enddo
@@ -467,6 +913,10 @@ do i=1,nchain
        endif
  enddo
 
+ do i=1,nchain
+    write(101,*)atoms(i,2:atoms(i,1)+1)
+ enddo 
+
 
 
 
@@ -474,38 +924,49 @@ do i=1,nchain
  enddo
 
  open(21,file='speciation-cation1.dat')
- open(22,file='speciation-anion1.dat')
- open(23,file='speciation-anion2.dat')
+ open(22,file='speciation-cation2.dat')
+ open(23,file='speciation-anion1.dat')
+ open(24,file='speciation-anion2.dat')
 
  do i=0,ncationpol1
     do j=0,ncationpol2
        do k=0,nanion1
           do l=0,nanion2
              fracijBe=100.0*(float(spec(i,j,k,l)))*float(i)/(float(nconfigs)*float(ncationpol1))
-             totfrac=totfrac+fracijBe
+             totfrac1=totfrac1+fracijBe
+             if(ncationpol2.ne.0)then
+                fracijBe2=100.0*(float(spec(i,j,k,l)))*float(j)/(float(nconfigs)*float(ncationpol2))
+                totfrac2=totfrac2+fracijBe2
+             endif    
              fracijO=100.0*(float(spec(i,j,k,l)))*float(k)/(float(nconfigs)*float(nanion1))
-             totfrac2=totfrac2+fracijO
-             fracijF=100.0*(float(spec(i,j,k,l)))*float(l)/(float(nconfigs)*float(nanion2))
-             totfrac3=totfrac3+fracijF
+             totfrac3=totfrac3+fracijO
+             if(nanion2.ne.0)then
+                fracijF=100.0*(float(spec(i,j,k,l)))*float(l)/(float(nconfigs)*float(nanion2))
+                totfrac4=totfrac4+fracijF
+             endif   
              if(fracijBe.gt. 0.01) then
-               write(21,*) fracijBe,'% de ',spc(3),i,spc(1),k,spc(2),l
+               write(21,*) fracijBe,'% de ',spc(3),i,spc(4),j,spc(1),k,spc(2),l
+             endif
+             if(fracijBe2.gt. 0.01) then
+               write(22,*) fracijBe2,'% de ',spc(3),i,spc(4),j,spc(1),k,spc(2),l
              endif
              if(fracijO.gt. 0.01) then
-               write(22,*) fracijO,'% de ',spc(3),i,spc(1),k,spc(2),l
+               write(23,*) fracijO,'% de ',spc(3),i,spc(4),j,spc(1),k,spc(2),l
              endif
              if(fracijF.gt. 0.01) then
-               write(23,*) fracijF,'% de ',spc(3),i,spc(1),k,spc(2),l
+               write(24,*) fracijF,'% de ',spc(3),i,spc(4),j,spc(1),k,spc(2),l
              endif
           enddo    
        enddo
    enddo
  enddo
  nchargetot=nchargetot/float(nconfigs)
- write(6,*)nchargetot+ncationfree1,totfrac,totfrac2,totfrac3
+ write(6,*)nchargetot+ncationfree1,totfrac1,totfrac2,totfrac3,totfrac4
 
  close(21)
  close(22)
  close(23)
+ close(24)
  close(11)
 
 
