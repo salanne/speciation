@@ -354,7 +354,7 @@ do i=1,ncationpol2
 
        if (r2.le.rdfmin2(4,3)) then
 
-          call linkage(imark,jmark,nshar,nanion1,rdfmin2(4,1),boxlength,x,y,z,shar)
+          call linkage3(imark,jmark,nshar,nanion1,rdfmin2(4,1),rdfmin2(3,1),boxlength,x,y,z,shar)
 
           if (nshar.ne.0) then 
              nneighbcat2(i)=nneighbcat2(i)+1
@@ -439,7 +439,7 @@ do i=1,ncationpol2
              enddo
           endif
 
-          call linkage2(imark,jmark,nshar,nanion1,nanion2,rdfmin2(4,2),boxlength,x,y,z,shar)
+          call linkage4(imark,jmark,nshar,nanion1,nanion2,rdfmin2(4,2),rdfmin2(3,2),boxlength,x,y,z,shar)
 
           if (nshar.ne.0) then 
              nneighbcat2(i)=nneighbcat2(i)+1
@@ -1076,5 +1076,108 @@ enddo
 
 return
 
+end
+
+subroutine linkage3(imark,jmark,nshar,nanion1,rdfcut2i,rdfcut2j,boxlength,x,y,z,shar)
+
+implicit none
+
+integer :: nmax
+
+parameter (nmax=800)
+
+integer :: i,j,k,nshar,nanion1
+integer :: imark,jmark
+integer, dimension(10) :: shar
+
+double precision, dimension(nmax) :: x,y,z
+double precision dx1,dx2,dy1,dy2,dz1,dz2,dr1,dr2,rdfcut2i,rdfcut2j
+double precision boxlength,halfbox,halfboxrec
+
+nshar=0
+
+halfbox=boxlength/2.0d0
+halfboxrec=1.0d0/halfbox
+
+do i=1,nanion1
+
+   dx1=x(i)-x(imark)
+   dy1=y(i)-y(imark)
+   dz1=z(i)-z(imark)
+
+   dx1=dx1-boxlength*int(dx1*halfboxrec)
+   dy1=dy1-boxlength*int(dy1*halfboxrec)
+   dz1=dz1-boxlength*int(dz1*halfboxrec)
+
+   dx2=x(i)-x(jmark)
+   dy2=y(i)-y(jmark)
+   dz2=z(i)-z(jmark)
+
+   dx2=dx2-boxlength*int(dx2*halfboxrec)
+   dy2=dy2-boxlength*int(dy2*halfboxrec)
+   dz2=dz2-boxlength*int(dz2*halfboxrec)
+
+   dr1=dx1**2+dy1**2+dz1**2
+   dr2=dx2**2+dy2**2+dz2**2
+
+   if (dr1.le.rdfcut2i .and. dr2.le.rdfcut2j) then
+      nshar=nshar+1
+      shar(nshar)=i
+   endif
+enddo
+
+return
+
+end
+
+subroutine linkage4(imark,jmark,nshar,nanion1,nanion2,rdfcut2i,rdfcut2j,boxlength,x,y,z,shar)
+
+implicit none
+
+integer :: nmax
+
+parameter (nmax=800)
+
+integer :: i,j,k,nshar,nanion1,nanion2
+integer :: imark,jmark
+integer, dimension(10) :: shar
+
+double precision, dimension(nmax) :: x,y,z
+double precision dx1,dx2,dy1,dy2,dz1,dz2,dr1,dr2,rdfcut2i,rdfcut2j
+double precision boxlength,halfbox,halfboxrec
+
+nshar=0
+
+halfbox=boxlength/2.0d0
+halfboxrec=1.0d0/halfbox
+
+do i=nanion1+1,nanion1+nanion2
+
+   dx1=x(i)-x(imark)
+   dy1=y(i)-y(imark)
+   dz1=z(i)-z(imark)
+
+   dx1=dx1-boxlength*int(dx1*halfboxrec)
+   dy1=dy1-boxlength*int(dy1*halfboxrec)
+   dz1=dz1-boxlength*int(dz1*halfboxrec)
+
+   dx2=x(i)-x(jmark)
+   dy2=y(i)-y(jmark)
+   dz2=z(i)-z(jmark)
+
+   dx2=dx2-boxlength*int(dx2*halfboxrec)
+   dy2=dy2-boxlength*int(dy2*halfboxrec)
+   dz2=dz2-boxlength*int(dz2*halfboxrec)
+
+   dr1=dx1**2+dy1**2+dz1**2
+   dr2=dx2**2+dy2**2+dz2**2
+
+   if (dr1.le.rdfcut2i .and. dr2.le.rdfcut2j) then
+      nshar=nshar+1
+      shar(nshar)=i
+   endif
+enddo
+
+return
 
 end
