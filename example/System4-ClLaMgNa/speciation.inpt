@@ -1,0 +1,14 @@
+10              !nconfigs
+0              !nskip (nskip+nstep=nombre de pas dans positions.out)
+Cl   180 -1            !nCl   Cl
+X    0   0
+La  20  3           !nLa
+Mg  40   2           !nMg
+Na  40 1           !nNa  
+20.488      !boxlength  
+0.000 0.000 4.000 0.000 0.000
+0.000 0.000 0.000 0.000 0.000
+4.000 0.000 6.317 0.000 0.000
+0.000 0.000 0.000 0.000 0.000
+0.000 0.000 0.000 0.000 0.000
+positions.out
