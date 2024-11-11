@@ -96,6 +96,7 @@ do l=1,nskip
 enddo
 
 do l=1,nconfigs
+if(l.eq.100)write(6,*)dble(l)*100.0/dble(nconfigs),'% completed'
 
 !Reading positions.out
 
